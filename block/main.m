@@ -17,7 +17,7 @@ int main(int argc, const char * argv[]) {
 //      void(*block)(void) = ((void (*)())&__main_block_impl_0((void *)__main_block_func_0, &__main_block_desc_0_DATA));
         
         // 简化后,去掉声明部分的 block 定义
-//        void(*block)(void) = &__main_block_impl_0(__main_block_func_0, &__main_block_desc_0_DATA));
+//        void(*block)(void) = &__main_block_impl_0(__main_block_func_0, &__main_block_desc_0_DATA);
         
         
         block();
