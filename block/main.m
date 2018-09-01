@@ -7,33 +7,43 @@
 //
 
 #import <Foundation/Foundation.h>
+#import "TYPerson.h"
 
 int a = 40;
+static int b = 40;
 
 int main(int argc, const char * argv[]) {
     @autoreleasepool {
-        
-//        auto int a = 30;
-//        static int b = 30;
-//
+    
 //        void(^testBlock)(void) = ^{
-//            NSLog(@"a = %d\n  b = %d\n",a,b);
+//            NSLog(@"a = %d \n b = %d",a, b);
 //        };
 //
-//        a = 40;
-//        b = 60;
+//        a = 1000;
+//        b = 1000;
 //
 //        testBlock();
         
-        void(^testBlock)(void) = ^{
-            NSLog(@"a = %d",a);
-        };
-        
-//        a = 1000;
-        
-        testBlock();
+        TYPerson *person = [[TYPerson alloc] init];
+        [person test1];
+        [person test2];
+        [TYPerson test3];
         
     }
+    
+    /*
+     //        auto int a = 30;
+     //        static int b = 30;
+     //
+     //        void(^testBlock)(void) = ^{
+     //            NSLog(@"a = %d\n  b = %d\n",a,b);
+     //        };
+     //
+     //        a = 40;
+     //        b = 60;
+     //
+     //        testBlock();
+     */
         
         /*
 
