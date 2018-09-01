@@ -138,6 +138,183 @@ static struct __main_block_desc_0 {
 } __main_block_desc_0_DATA = { 0, sizeof(struct __main_block_impl_0)};
 ```
 
+#### 2.3 `block->FuncPtr(block)`
+
+该标题是简化后的代码,看着通过 block 直接找到FuncPtr 调用 block 有点奇怪.下面是原先带有强制转换的代码:
+
+```c++
+ ((void (*)(__block_impl *))((__block_impl *)block)->FuncPtr)((__block_impl *)block);
+```
+
+- 将`block`强制转换为 `__block_impl`.下面看下 `__block_impl`
+
+```c++
+struct __block_impl {
+  void *isa;
+  int Flags;
+  int Reserved;
+  void *FuncPtr;
+};
+```
+
+- 发现其中有 `FuncPtr`.那么上面直接拿 `FuncPtr` 就是合理的.
+
+那为什么我们可以将`block` 强制转换为 `__block_impl` 呢? `block` 最开始是指向 `__main_block_impl_0` 的.
+
+- 因为看 `__main_block_impl_0` 的结构可知,它的第一个成员就是 `__block_impl`, 所以它的内存地址就是 `__main_block_impl_0`这个结构体的内存地址.所以这么转换没有问题.
+
+## 三. block 变量捕获
+
+### 1. 局部变量之 auto 变量捕获
+
+- auto 变量
+    - 自动变量,离开大括号的作用域范围就会自动销毁
+    - 如下面的`int a = 30;` 其实就是`auto int a = 30;` 不过把 auto 省略了. 
+- auto 变量`可以`被捕获到 block 内部
+- 且其访问方式是`值传递` .
+
+代码如下:
+
+```objc
+int main(int argc, const char * argv[]) {
+    @autoreleasepool {
+    
+        // 定义 auto 变量 a, 值30
+        int a = 30;
+        
+        // 将 a 捕获进 block, 此时 block 内部存的 a 值就是 30.
+        void(^testBlock)(void) = ^{
+            NSLog(@"a = %d",a);
+        };
+        
+        // 改变 a 的值为40, 执行完这之后, 变量 a 自动销毁
+        a = 40;
+        
+        // 执行 block. 执行 `NSLog` 方法, 因为之前 block 内部存储的 a 的值是30,而此时变量 a 已经销毁了,所以打印出的 a 值还是30.
+        testBlock();  
+    }
+    return 0;
+}
+
+// 打印结果: a = 30;
+```
+
+编译成`C++`文件看其实现过程:
+
+```c++
+nt main(int argc, const char * argv[]) {
+    int a = 30;
+    void(*testBlock)(void) = ((void (*)())&__main_block_impl_0((void *)__main_block_func_0, &__main_block_desc_0_DATA, a));
+    a = 40;
+    ((void (*)(__block_impl *))((__block_impl *)testBlock)->FuncPtr)((__block_impl *)testBlock);
+    return 0;
+}
+```
+
+发现 `__main_block_impl_0` 这个结构体发生了变化:
+
+```c++
+struct __main_block_impl_0 {
+  struct __block_impl impl;
+  struct __main_block_desc_0* Desc;
+  // 多了个成员 a
+  int a;
+  // 多了个参数 _a
+  // a(_a) 表示把`_a`赋值给成员`a`
+  __main_block_impl_0(void *fp, struct __main_block_desc_0 *desc, int _a, int flags=0) : a(_a) {
+    impl.isa = &_NSConcreteStackBlock;
+    impl.Flags = flags;
+    impl.FuncPtr = fp;
+    Desc = desc;
+  }
+};
+```
+
+所以 `void(*testBlock)(void) = ((void (*)())&__main_block_impl_0((void *)__main_block_func_0, &__main_block_desc_0_DATA, a));` 将 `a` 做参数传进去. `_a`将变量`30`赋值给结构体 `__main_block_impl_0`的成员`a`.然后在下面这个方法内,拿到 `a` 打印出来.
+
+```c++
+static void __main_block_func_0(struct __main_block_impl_0 *__cself) {
+  int a = __cself->a; // bound by copy
+
+        NSLog((NSString *)&__NSConstantStringImpl__var_folders_w8_wnywnfxn7zldh13vnt816cmm0000gn_T_main_ffe641_mi_0,a);
+    }
+```
+
+后面的`int a=40`因为是值传递,所以不能改变 block 内的值.
+
+### 2.局部变量之 static 变量捕获
+
+看如下代码,定义`static`变量`b`,当 b 的值改为`60`时,block 内的 b 发生变化.
+
+```c++
+int main(int argc, const char * argv[]) {
+    @autoreleasepool {   
+        
+        // 定义 auto 变量a, static 变量 b.
+        auto int a = 30;
+        static int b = 30;  
+        
+        // block 捕获 a 和 b 的值.
+        void(^testBlock)(void) = ^{
+            NSLog(@"a = %d\n  b = %d\n",a,b);
+        };
+        
+        // 将 a 重新赋值为 40
+        a = 40;
+        // 将 b 重新赋值为 60.
+        b = 60;   
+        
+        /** 执行这里过后.auto 变量 a 自动销毁,而 static 变量 b 没有销毁  **/
+        
+        // 执行 block, 取出 a 和 b 的值.
+        // 因为 block 之前捕获的 a 值为 30.而此时 a 销毁了,所以直接打印出30;
+        // 因为 block 之前捕获的 b 值为30.但是此时 b 没有被销毁.而且 b 的值已经变味 60.所以打印 b 的值为60.
+        testBlock();    
+    }
+    return 0;
+}
+```
+
+看其`C++`代码实现:
+
+```c++
+int main(int argc, const char * argv[]) {
+    /* @autoreleasepool */ { __AtAutoreleasePool __autoreleasepool; 
+        auto int a = 30;
+        static int b = 30;
+        void(*testBlock)(void) = ((void (*)())&__main_block_impl_0((void *)__main_block_func_0, &__main_block_desc_0_DATA, a, &b));
+        a = 40;
+        b = 60;
+        ((void (*)(__block_impl *))((__block_impl *)testBlock)->FuncPtr)((__block_impl *)testBlock);
+    }
+    return 0;
+}
+```
+
+看到上面的实现后我们发现.这里是将`b`的`地址`传进去的.`&b`.
+
+而 `__main_block_impl_0` 结构体多了`两个`成员.
+
+- int a;
+- int *b;
+
+```c++
+struct __main_block_impl_0 {
+  struct __block_impl impl;
+  struct __main_block_desc_0* Desc;
+  int a;
+  int *b;
+  __main_block_impl_0(void *fp, struct __main_block_desc_0 *desc, int _a, int *_b, int flags=0) : a(_a), b(_b) {
+    impl.isa = &_NSConcreteStackBlock;
+    impl.Flags = flags;
+    impl.FuncPtr = fp;
+    Desc = desc;
+  }
+};
+```
+
+所以会将 b 的地址赋值给 `int *b`,最后打印的时候拿到 b 的地址,将 b 取出.因为 b 最后发生了变化,所以最后打印`b = 60`.
+
 
  
 

@@ -8,8 +8,35 @@
 
 #import <Foundation/Foundation.h>
 
+int a = 40;
+
 int main(int argc, const char * argv[]) {
     @autoreleasepool {
+        
+//        auto int a = 30;
+//        static int b = 30;
+//
+//        void(^testBlock)(void) = ^{
+//            NSLog(@"a = %d\n  b = %d\n",a,b);
+//        };
+//
+//        a = 40;
+//        b = 60;
+//
+//        testBlock();
+        
+        void(^testBlock)(void) = ^{
+            NSLog(@"a = %d",a);
+        };
+        
+//        a = 1000;
+        
+        testBlock();
+        
+    }
+        
+        /*
+
         void(^block)(void) = ^{
             NSLog(@"Hello, World!");
         };
@@ -26,6 +53,10 @@ int main(int argc, const char * argv[]) {
         // 简化后去掉声明的 执行 block 部分
         // // block->FuncPtr(block);
     }
+         
+         */
+
+        
     return 0;
 }
 
